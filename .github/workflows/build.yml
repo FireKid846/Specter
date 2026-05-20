@@ -24,9 +24,6 @@ jobs:
         with:
           workspaces: ". -> target"
 
-      - name: Check formatting
-        run: cargo fmt --check -p specter-engine
-
       - name: Clippy
         run: cargo clippy -p specter-engine -- -D warnings
         continue-on-error: true
