@@ -1,12 +1,21 @@
 name: Publish Release
 
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. v1.2.3)'
+        required: true
+        type: string
   push:
     tags:
       - 'v*.*.*'
 
 permissions:
   contents: write
+
+env:
+  RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
 
 jobs:
   # ─── 1. Test ────────────────────────────────────────────────────────────────
@@ -156,10 +165,11 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "Specter Engine ${{ github.ref_name }}"
+          tag_name: ${{ env.RELEASE_VERSION }}
+          name: "Specter Engine ${{ env.RELEASE_VERSION }}"
           generate_release_notes: true
           body: |
-            ## Specter Engine ${{ github.ref_name }}
+            ## Specter Engine ${{ env.RELEASE_VERSION }}
 
             ### UCI Binaries
 
