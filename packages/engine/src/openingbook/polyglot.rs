@@ -132,7 +132,7 @@ fn decode_polyglot_move_uci(encoded: u16) -> String {
 
 /// Decode a polyglot move into a Specter Move.
 /// Returns None — caller should match the UCI string against legal moves.
-fn decode_polyglot_move(encoded: u16) -> Option<Move> {
+fn decode_polyglot_move(_encoded: u16) -> Option<Move> {
     // We return None and handle matching externally via parse_move()
     // This avoids duplicating castling/en-passant logic here.
     None

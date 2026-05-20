@@ -7,13 +7,13 @@
 /// with the null window and never need re-searching.
 
 use crate::board::position::{Move, Position};
-use crate::eval::{evaluate, is_mate_score, SCORE_DRAW, SCORE_INFINITE, SCORE_MATE, SCORE_MATED, SCORE_NONE};
+use crate::eval::{evaluate, is_mate_score, SCORE_DRAW, SCORE_MATED, SCORE_NONE};
 use crate::history::butterfly::ButterflyHistory;
 use crate::history::capture::CaptureHistory;
 use crate::history::continuation::ContinuationHistory;
 use crate::history::correction::CorrectionHistory;
 use crate::history::killer::KillerTable;
-use crate::movegen::legal::{is_in_check, legal_moves, legal_captures};
+use crate::movegen::legal::{is_in_check, legal_moves};
 use crate::search::nmp::try_null_move;
 use crate::search::quiescence::quiescence;
 use crate::search::singular::try_singular_extension;
@@ -257,7 +257,7 @@ pub fn pvs(
                         let bonus = history_bonus(depth);
                         state.butterfly.update(pos.side.index(), mv.from().index(), mv.to().index(), bonus);
                         // Penalize quiets that didn't cause cutoff
-                        for &(other_mv, _) in scored_moves.iter().take(moves_searched - 1) {
+                        for &(other_mv, _) in scored_moves.iter().take((moves_searched - 1) as usize) {
                             if pos.piece_on(other_mv.to()).is_none() {
                                 state.butterfly.update(pos.side.index(), other_mv.from().index(), other_mv.to().index(), -bonus);
                             }
@@ -301,7 +301,7 @@ fn score_move(
     if let Some(cap) = captured {
         // MVV-LVA: Most Valuable Victim - Least Valuable Aggressor
         let victim_val   = piece_value_simple(cap.piece_type);
-        let aggressor_pt = pos.piece_type_on(mv.from(), pos.side).unwrap_or(PieceType::Pawn);
+        let _aggressor_pt = pos.piece_type_on(mv.from(), pos.side).unwrap_or(PieceType::Pawn);
         let aggressor_val = piece_value_simple(aggressor_pt);
         return 1_000_000 + victim_val * 10 - aggressor_val;
     }
@@ -314,7 +314,7 @@ fn score_move(
     if mv == killers[1] { return 700_000; }
 
     // Butterfly history
-    let aggressor_pt = pos.piece_type_on(mv.from(), pos.side).unwrap_or(PieceType::Pawn);
+    let _aggressor_pt = pos.piece_type_on(mv.from(), pos.side).unwrap_or(PieceType::Pawn);
     state.butterfly.get(pos.side.index(), mv.from().index(), mv.to().index())
 }
 

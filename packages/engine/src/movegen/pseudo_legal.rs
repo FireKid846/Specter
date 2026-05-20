@@ -94,7 +94,7 @@ fn gen_pawn_pushes(pos: &Position, us: Color, occ: u64, list: &mut MoveList) {
     let pawns = pos.bb(us, PieceType::Pawn);
     let empty = !occ;
 
-    let (single, double_start, promo_rank, push): (u64, u64, u64, fn(u64) -> u64) = match us {
+    let (single, _double_start, promo_rank, push): (u64, u64, u64, fn(u64) -> u64) = match us {
         Color::White => (north(pawns) & empty, RANK_2, RANK_8, north),
         Color::Black => (south(pawns) & empty, RANK_7, RANK_1, south),
     };
@@ -137,7 +137,7 @@ fn gen_pawn_pushes(pos: &Position, us: Color, occ: u64, list: &mut MoveList) {
     }
 }
 
-fn gen_pawn_captures(pos: &Position, us: Color, occ: u64, their: u64, list: &mut MoveList) {
+fn gen_pawn_captures(pos: &Position, us: Color, _occ: u64, their: u64, list: &mut MoveList) {
     let pawns = pos.bb(us, PieceType::Pawn);
     let promo_rank = if us == Color::White { RANK_8 } else { RANK_1 };
 
@@ -230,7 +230,7 @@ fn gen_bishops(pos: &Position, us: Color, our: u64, occ: u64, list: &mut MoveLis
     }
 }
 
-fn gen_bishop_captures(pos: &Position, us: Color, our: u64, occ: u64, their: u64, list: &mut MoveList) {
+fn gen_bishop_captures(pos: &Position, us: Color, _our: u64, occ: u64, their: u64, list: &mut MoveList) {
     let mut bishops = pos.bb(us, PieceType::Bishop);
     while bishops != 0 {
         let sq = pop_lsb(&mut bishops);
@@ -264,7 +264,7 @@ fn gen_rooks(pos: &Position, us: Color, our: u64, occ: u64, list: &mut MoveList)
     }
 }
 
-fn gen_rook_captures(pos: &Position, us: Color, our: u64, occ: u64, their: u64, list: &mut MoveList) {
+fn gen_rook_captures(pos: &Position, us: Color, _our: u64, occ: u64, their: u64, list: &mut MoveList) {
     let mut rooks = pos.bb(us, PieceType::Rook);
     while rooks != 0 {
         let sq = pop_lsb(&mut rooks);
@@ -298,7 +298,7 @@ fn gen_queens(pos: &Position, us: Color, our: u64, occ: u64, list: &mut MoveList
     }
 }
 
-fn gen_queen_captures(pos: &Position, us: Color, our: u64, occ: u64, their: u64, list: &mut MoveList) {
+fn gen_queen_captures(pos: &Position, us: Color, _our: u64, occ: u64, their: u64, list: &mut MoveList) {
     let mut queens = pos.bb(us, PieceType::Queen);
     while queens != 0 {
         let sq = pop_lsb(&mut queens);
@@ -329,7 +329,7 @@ fn gen_king(pos: &Position, us: Color, our: u64, list: &mut MoveList) {
     }
 }
 
-fn gen_king_captures(pos: &Position, us: Color, our: u64, their: u64, list: &mut MoveList) {
+fn gen_king_captures(pos: &Position, us: Color, _our: u64, their: u64, list: &mut MoveList) {
     let king_sq = pos.king_sq(us);
     let mut attacks = king_attacks_sq(king_sq as u32) & their;
     while attacks != 0 {

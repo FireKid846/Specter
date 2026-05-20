@@ -57,7 +57,7 @@ fn passed_pawn_mask_white(sq: u32) -> u64 {
     if file > 0 { mask |= north_fill(1u64 << (sq - 1 + 8)) }
     if file < 7 { mask |= north_fill(1u64 << (sq + 1 + 8)) }
     // Only ranks above the pawn
-    let rank_mask = !((1u64 << ((rank + 1) * 8)) - 1) | ((1u64 << (rank * 8)) - 1);
+    let _rank_mask = !((1u64 << ((rank + 1) * 8)) - 1) | ((1u64 << (rank * 8)) - 1);
     mask
 }
 
@@ -84,7 +84,7 @@ pub fn evaluate_pawns(pos: &Position) -> i32 {
     score
 }
 
-fn eval_pawns_for_color(pos: &Position, us: Color, our_pawns: u64, their_pawns: u64) -> i32 {
+fn eval_pawns_for_color(_pos: &Position, us: Color, our_pawns: u64, their_pawns: u64) -> i32 {
     let mut score = 0i32;
     let mut pawns = our_pawns;
 

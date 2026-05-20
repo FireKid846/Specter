@@ -28,7 +28,7 @@ pub fn evaluate_threats(pos: &Position) -> i32 {
 fn eval_threats_for(pos: &Position, us: Color) -> i32 {
     let them  = us.flip();
     let occ   = pos.occupancy;
-    let our   = pos.color_bb(us);
+    let _our   = pos.color_bb(us);
     let their = pos.color_bb(them);
 
     let our_pawns   = pos.bb(us, PieceType::Pawn);

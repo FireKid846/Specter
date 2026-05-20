@@ -5,7 +5,6 @@ use crate::board::bitboard::*;
 use crate::board::color::Color;
 use crate::board::piece::PieceType;
 use crate::board::position::{Move, Position};
-use crate::board::square::Square;
 use crate::movegen::attacks::*;
 use crate::movegen::pseudo_legal::{generate_all, generate_captures, MoveList};
 
@@ -50,7 +49,7 @@ pub fn is_in_check(pos: &Position, color: Color) -> bool {
 /// Returns true if a square is attacked by the given color.
 pub fn is_square_attacked(pos: &Position, sq: u32, attacker: Color) -> bool {
     let occ   = pos.occupancy;
-    let their = pos.color_bb(attacker);
+    let _their = pos.color_bb(attacker);
 
     // Pawn attacks
     if pawn_attacks(attacker.flip(), sq) & pos.bb(attacker, PieceType::Pawn) != 0 {

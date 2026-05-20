@@ -17,7 +17,7 @@ pub fn run_uci_loop() {
     let mut pos    = Position::startpos();
 
     let stdin  = io::stdin();
-    let stdout = io::stdout();
+    let _stdout = io::stdout();
 
     for line in stdin.lock().lines() {
         let line = line.unwrap_or_default();

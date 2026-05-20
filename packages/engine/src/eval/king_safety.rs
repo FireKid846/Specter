@@ -47,7 +47,7 @@ pub fn evaluate_king_safety(pos: &Position, phase: i32) -> i32 {
     score
 }
 
-fn eval_king_side(pos: &Position, us: Color, phase: i32) -> i32 {
+fn eval_king_side(pos: &Position, us: Color, _phase: i32) -> i32 {
     let them = us.flip();
     let king_sq = pos.king_sq(us) as u32;
     let occ = pos.occupancy;

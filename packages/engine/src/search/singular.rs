@@ -9,8 +9,8 @@ use crate::tt::entry::Bound;
 pub fn try_singular_extension(
     pos:   &mut Position,
     state: &mut SearchState,
-    mv:    Move,
-    alpha: i32,
+    _mv:    Move,
+    _alpha: i32,
     beta:  i32,
     depth: i32,
     ply:   usize,

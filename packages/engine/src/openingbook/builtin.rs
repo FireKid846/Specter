@@ -4,7 +4,6 @@
 /// Covers: 20 most common openings with main lines up to move 8-10.
 
 use crate::board::position::Move;
-use std::collections::HashMap;
 
 pub struct BuiltinBook {
     /// Map from Zobrist hash → list of candidate moves (UCI strings).
@@ -94,7 +93,7 @@ pub fn build_book_entries() -> Vec<(u64, String)> {
 
     for line in OPENING_LINES {
         let mut pos = Position::startpos();
-        for (i, &mv_str) in line.iter().enumerate() {
+        for (_i, &mv_str) in line.iter().enumerate() {
             // Record the position hash → next move
             let hash = pos.hash;
             entries.push((hash, mv_str.to_string()));

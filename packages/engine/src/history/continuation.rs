@@ -1,4 +1,3 @@
-use crate::board::position::Move;
 /// Continuation history — for move pairs (previous move, current move).
 /// Used in countermove and follow-up heuristics.
 pub struct ContinuationHistory(Box<[[[[i32; 64]; 6]; 64]; 6]>);

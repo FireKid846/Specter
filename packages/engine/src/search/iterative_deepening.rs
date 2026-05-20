@@ -6,7 +6,7 @@
 /// If it fails, widen and re-search.
 
 use crate::board::position::{Move, Position};
-use crate::eval::{SCORE_INFINITE, SCORE_MATE, is_mate_score, mate_in};
+use crate::eval::{SCORE_INFINITE, is_mate_score, mate_in};
 use crate::history::butterfly::ButterflyHistory;
 use crate::history::capture::CaptureHistory;
 use crate::history::continuation::ContinuationHistory;
@@ -140,7 +140,7 @@ pub fn search(
             time_ms:   elapsed_ms,
             pv:        pv.clone(),
             nps,
-            hashfull:  tt.hashfull(),
+            hashfull:  state.tt.hashfull(),
         };
 
         if let Some(ref cb) = callback {

@@ -3,7 +3,7 @@ use crate::board::color::Color;
 use crate::board::piece::{Piece, PieceType};
 use crate::board::square::Square;
 use crate::board::zobrist::{
-    self, ZobristHasher, CASTLE_WK, CASTLE_WQ, CASTLE_BK, CASTLE_BQ,
+    CASTLE_WK, CASTLE_WQ, CASTLE_BK, CASTLE_BQ,
     CASTLING_KEYS, EN_PASSANT_KEYS, PIECE_KEYS, SIDE_KEY,
 };
 
@@ -368,7 +368,7 @@ impl Position {
                     self.halfmove_clock = 0;
                     if flag == 1 {
                         // Set en passant square
-                        let ep_sq = Square::from_index((to as u8 as i8 + us.pawn_push() * -1) as u8);
+                        let ep_sq = Square::from_index((to as i32 - us.pawn_push()) as u8);
                         self.en_passant = Some(ep_sq);
                         self.hash ^= EN_PASSANT_KEYS[ep_sq.file() as usize];
                     }
@@ -402,7 +402,7 @@ impl Position {
             // En passant
             4 => {
                 self.move_piece(us, PieceType::Pawn, from, to);
-                let cap_sq = Square::from_index((to as u8 as i8 - us.pawn_push()) as u8);
+                let cap_sq = Square::from_index((to as i32 - us.pawn_push()) as u8);
                 self.remove_piece(them, PieceType::Pawn, cap_sq);
                 captured_pt = Some(PieceType::Pawn);
                 self.halfmove_clock = 0;
@@ -481,7 +481,7 @@ impl Position {
             }
             4 => {
                 self.move_piece(us, PieceType::Pawn, to, from);
-                let cap_sq = Square::from_index((to as u8 as i8 - us.pawn_push()) as u8);
+                let cap_sq = Square::from_index((to as i32 - us.pawn_push()) as u8);
                 self.put_piece(them, PieceType::Pawn, cap_sq);
             }
             5..=8 => {

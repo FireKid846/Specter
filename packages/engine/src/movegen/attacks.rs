@@ -9,7 +9,6 @@
 ///   attacks = attack_table[sq][index]
 
 use crate::board::bitboard::*;
-use crate::board::square::Square;
 
 // ─── Rook magic numbers (pre-computed, well-known values) ─────────────────────
 #[rustfmt::skip]
