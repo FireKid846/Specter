@@ -28,10 +28,25 @@ impl SkillParams {
 }
 
 /// Simple inline PRNG for skill variation (no external deps).
+/// Uses platform-appropriate seed to avoid SystemTime on wasm32.
+#[cfg(not(feature = "wasm"))]
 fn rand_float() -> f64 {
     use std::time::{SystemTime, UNIX_EPOCH};
-    let seed = SystemTime::now().duration_since(UNIX_EPOCH)
-        .unwrap_or_default().subsec_nanos() as u64;
+    let seed = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .subsec_nanos() as u64;
+    lcg(seed)
+}
+
+#[cfg(feature = "wasm")]
+fn rand_float() -> f64 {
+    let seed = js_sys::Date::now() as u64;
+    lcg(seed)
+}
+
+#[inline]
+fn lcg(seed: u64) -> f64 {
     let x = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
     (x >> 11) as f64 / (1u64 << 53) as f64
 }
