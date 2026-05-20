@@ -6,7 +6,7 @@
 /// If it fails, widen and re-search.
 
 use crate::board::position::{Move, Position};
-use crate::eval::{SCORE_INFINITE, is_mate_score, mate_in};
+use crate::eval::{SCORE_INFINITE, SCORE_NONE, is_mate_score, mate_in};
 use crate::history::butterfly::ButterflyHistory;
 use crate::history::capture::CaptureHistory;
 use crate::history::continuation::ContinuationHistory;
@@ -67,6 +67,8 @@ pub fn search(
         pv:           [[Move::NULL; MAX_PLY]; MAX_PLY],
         pv_length:    [0; MAX_PLY],
         move_stack:   [Move::NULL; MAX_PLY],
+        eval_stack:   [SCORE_NONE; MAX_PLY],
+        excl_move:    Move::NULL,
     };
 
     let mut best_move  = Move::NULL;
