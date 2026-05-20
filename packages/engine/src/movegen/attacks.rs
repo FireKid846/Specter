@@ -16,8 +16,8 @@ struct MagicEntry {
 static mut ROOK_MAGICS:   [MagicEntry; 64] = unsafe { std::mem::zeroed() };
 static mut BISHOP_MAGICS: [MagicEntry; 64] = unsafe { std::mem::zeroed() };
 
-static mut ROOK_ATTACKS:   [Vec<u64>; 64] = unsafe { std::mem::zeroed() };
-static mut BISHOP_ATTACKS: [Vec<u64>; 64] = unsafe { std::mem::zeroed() };
+static mut ROOK_ATTACKS:   [Vec<u64>; 64] = [const { Vec::new() }; 64];
+static mut BISHOP_ATTACKS: [Vec<u64>; 64] = [const { Vec::new() }; 64];
 
 static mut KNIGHT_TABLE: [u64; 64] = [0; 64];
 static mut KING_TABLE:   [u64; 64] = [0; 64];
