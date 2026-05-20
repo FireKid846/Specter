@@ -1,5 +1,5 @@
 /// WASM bindings — exposes Specter to JavaScript via wasm-bindgen.
-/// Build with: wasm-pack build packages/engine --target web
+/// Build with: wasm-pack build packages/engine --target web --features wasm
 
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
@@ -13,12 +13,17 @@ use crate::search::iterative_deepening::search;
 use crate::search::timeman::TimeManager;
 #[cfg(feature = "wasm")]
 use crate::tt::table::TranspositionTable;
+#[cfg(feature = "wasm")]
+use crate::personality::elo::elo_to_params;
+#[cfg(feature = "wasm")]
+use crate::personality::skill::SkillParams;
 
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
 pub struct SpectorEngine {
-    pos: Position,
-    tt:  TranspositionTable,
+    pos:   Position,
+    tt:    TranspositionTable,
+    skill: SkillParams,
 }
 
 #[cfg(feature = "wasm")]
@@ -28,8 +33,9 @@ impl SpectorEngine {
     pub fn new() -> SpectorEngine {
         init_all();
         SpectorEngine {
-            pos: Position::startpos(),
-            tt:  TranspositionTable::new(32),
+            pos:   Position::startpos(),
+            tt:    TranspositionTable::new(32),
+            skill: SkillParams::full_strength(),
         }
     }
 
@@ -53,16 +59,41 @@ impl SpectorEngine {
         }
     }
 
-    /// Get the best move for the current position within a time limit (ms).
+    /// Get the best move for the current position.
+    /// time_ms: time limit in milliseconds (used when depth == 0).
+    /// depth:   fixed depth (0 = use time_ms instead).
+    /// ELO skill level is applied automatically if set via setElo().
     #[wasm_bindgen(js_name = getBestMove)]
     pub fn get_best_move(&mut self, time_ms: u32, depth: u32) -> String {
-        let time = if depth > 0 {
-            TimeManager::fixed_depth(depth)
+        // Determine effective depth: lower of user request and skill cap.
+        let skill_depth = self.skill.depth;
+        let effective_depth = match (depth, skill_depth) {
+            (0, 0) => 0,          // no cap — use time
+            (0, s) => s,          // skill cap only
+            (d, 0) => d,          // user depth only
+            (d, s) => d.min(s),   // take the tighter limit
+        };
+
+        let time = if effective_depth > 0 {
+            TimeManager::fixed_depth(effective_depth)
         } else {
             TimeManager::fixed_time(time_ms as u64)
         };
 
         let result = search(&mut self.pos, &mut self.tt, time, None);
+
+        // Blunder / mistake injection: play a random legal move instead.
+        if self.skill.should_play_blunder() || self.skill.should_play_mistake() {
+            use crate::movegen::legal::legal_moves;
+            let moves = legal_moves(&mut self.pos);
+            let count = moves.count;
+            if count > 0 {
+                // Pseudo-random pick derived from node count (avoids SystemTime in WASM).
+                let idx = (result.nodes as usize) % count;
+                return moves.as_slice()[idx].to_uci();
+            }
+        }
+
         result.best_move.to_uci()
     }
 
@@ -101,16 +132,23 @@ impl SpectorEngine {
         "playing".to_string()
     }
 
-    /// Reset to starting position.
+    /// Reset to starting position and clear the TT.
     #[wasm_bindgen(js_name = reset)]
     pub fn reset(&mut self) {
         self.pos = Position::startpos();
         self.tt.clear();
     }
 
-    /// Set ELO strength level.
+    /// Set ELO strength level (100–3200).
+    /// Caps search depth and enables blunder/mistake injection.
     #[wasm_bindgen(js_name = setElo)]
-    pub fn set_elo(&mut self, _elo: u32) {
-        // ELO mapping stored — affects getBestMove depth/blunder rate in Phase 2
+    pub fn set_elo(&mut self, elo: u32) {
+        self.skill = elo_to_params(elo);
+    }
+
+    /// Reset to full engine strength.
+    #[wasm_bindgen(js_name = setFullStrength)]
+    pub fn set_full_strength(&mut self) {
+        self.skill = SkillParams::full_strength();
     }
 }
