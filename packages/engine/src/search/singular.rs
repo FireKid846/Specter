@@ -9,7 +9,7 @@ use crate::tt::entry::Bound;
 pub fn try_singular_extension(
     pos:   &mut Position,
     state: &mut SearchState,
-    _mv:    Move,
+    mv:    Move,
     _alpha: i32,
     beta:  i32,
     depth: i32,
@@ -22,8 +22,11 @@ pub fn try_singular_extension(
     let s_beta  = (tt_entry.score - depth * 2).max(-30000);
     let s_depth = (depth - 1) / 2;
 
-    // Temporarily exclude the TT move and search
+    // Exclude the TT move so the sub-search cannot use it.
+    // This lets us check: is this move singularly better than everything else?
+    state.excl_move = mv;
     let excl_score = pvs(pos, state, s_beta - 1, s_beta, s_depth, ply, false, false);
+    state.excl_move = Move::NULL;
 
     if excl_score < s_beta {
         // TT move is singular — extend it
