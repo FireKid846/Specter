@@ -345,25 +345,47 @@ fn gen_king_captures(pos: &Position, us: Color, _our: u64, their: u64, list: &mu
 // ─── Castling ─────────────────────────────────────────────────────────────────
 
 fn gen_castling(pos: &Position, us: Color, occ: u64, list: &mut MoveList) {
-    let (king_sq, ks_right, qs_right, ks_path, qs_path, ks_to, qs_to) = match us {
+    let them = us.flip();
+
+    // Inline attack check to avoid a circular dependency with legal.rs.
+    // Returns true if `sq` is attacked by `them`.
+    let sq_attacked = |sq: u32| -> bool {
+        if pawn_attacks(us, sq) & pos.bb(them, PieceType::Pawn) != 0 { return true; }
+        if knight_attacks_sq(sq) & pos.bb(them, PieceType::Knight) != 0 { return true; }
+        if bishop_attacks(sq, occ) & (pos.bb(them, PieceType::Bishop) | pos.bb(them, PieceType::Queen)) != 0 { return true; }
+        if rook_attacks(sq, occ) & (pos.bb(them, PieceType::Rook) | pos.bb(them, PieceType::Queen)) != 0 { return true; }
+        if king_attacks_sq(sq) & pos.bb(them, PieceType::King) != 0 { return true; }
+        false
+    };
+
+    let (king_sq, ks_right, qs_right, ks_path, qs_path, ks_to, qs_to, ks_transit, qs_transit) = match us {
         Color::White => (
             Square::E1, CASTLE_WK, CASTLE_WQ,
             Square::F1.bb() | Square::G1.bb(),
             Square::B1.bb() | Square::C1.bb() | Square::D1.bb(),
             Square::G1, Square::C1,
+            Square::F1 as u32, Square::D1 as u32,
         ),
         Color::Black => (
             Square::E8, CASTLE_BK, CASTLE_BQ,
             Square::F8.bb() | Square::G8.bb(),
             Square::B8.bb() | Square::C8.bb() | Square::D8.bb(),
             Square::G8, Square::C8,
+            Square::F8 as u32, Square::D8 as u32,
         ),
     };
 
-    if pos.castling & ks_right != 0 && occ & ks_path == 0 {
+    // The king cannot castle while in check.
+    if sq_attacked(king_sq as u32) {
+        return;
+    }
+
+    // Kingside: king travels E→F→G. F is the transit; G (destination) is caught by is_legal.
+    if pos.castling & ks_right != 0 && occ & ks_path == 0 && !sq_attacked(ks_transit) {
         list.push(Move::new(king_sq, ks_to, MoveFlag::CastleKing));
     }
-    if pos.castling & qs_right != 0 && occ & qs_path == 0 {
+    // Queenside: king travels E→D→C. D is the transit; C (destination) is caught by is_legal.
+    if pos.castling & qs_right != 0 && occ & qs_path == 0 && !sq_attacked(qs_transit) {
         list.push(Move::new(king_sq, qs_to, MoveFlag::CastleQueen));
     }
 }
