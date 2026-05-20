@@ -203,8 +203,8 @@ mod tests {
 
     #[test]
     fn test_pawn_attacks() {
-        // White pawns on rank 2
+        // White pawns on rank 2 all attack rank 3 — 8 distinct squares (a3-h3)
         let attacks = white_pawn_attacks(RANK_2);
-        assert_eq!(popcount(attacks), 14); // 6 interior files × 2 + 2 corner files × 1 = 14
+        assert_eq!(popcount(attacks), 8);
     }
 }
