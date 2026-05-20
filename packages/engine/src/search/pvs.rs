@@ -168,7 +168,7 @@ pub fn pvs(
     for (mv, _) in &scored_moves {
         let mv = *mv;
         let is_capture   = pos.piece_on(mv.to()).is_some();
-        let is_promotion = mv.is_promotion();
+        let _is_promotion = mv.is_promotion();
         let gives_check  = {
             let state_bak = pos.make_move(mv);
             let ch = is_in_check(pos, pos.side);
@@ -300,8 +300,8 @@ fn score_move(
 
     if let Some(cap) = captured {
         // MVV-LVA: Most Valuable Victim - Least Valuable Aggressor
-        let victim_val   = piece_value_simple(cap.piece_type);
-        let _aggressor_pt = pos.piece_type_on(mv.from(), pos.side).unwrap_or(PieceType::Pawn);
+        let victim_val    = piece_value_simple(cap.piece_type);
+        let aggressor_pt  = pos.piece_type_on(mv.from(), pos.side).unwrap_or(PieceType::Pawn);
         let aggressor_val = piece_value_simple(aggressor_pt);
         return 1_000_000 + victim_val * 10 - aggressor_val;
     }
@@ -314,7 +314,6 @@ fn score_move(
     if mv == killers[1] { return 700_000; }
 
     // Butterfly history
-    let _aggressor_pt = pos.piece_type_on(mv.from(), pos.side).unwrap_or(PieceType::Pawn);
     state.butterfly.get(pos.side.index(), mv.from().index(), mv.to().index())
 }
 
