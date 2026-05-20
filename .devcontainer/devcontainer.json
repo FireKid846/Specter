@@ -1,0 +1,23 @@
+{
+  "name": "Specter Engine",
+  "image": "mcr.microsoft.com/devcontainers/rust:1-bullseye",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" },
+    "ghcr.io/devcontainers/features/rust:1": { "version": "stable" }
+  },
+  "postCreateCommand": "cargo fetch && curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh && npm install -g pnpm wrangler",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "tamasfe.even-better-toml",
+        "serayuzgur.crates",
+        "ms-vscode.live-server"
+      ]
+    }
+  },
+  "forwardPorts": [8787],
+  "portsAttributes": {
+    "8787": { "label": "Wrangler Dev Server" }
+  }
+}

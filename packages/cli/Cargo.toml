@@ -1,0 +1,14 @@
+[package]
+name = "specter-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license = "MIT"
+description = "Specter Chess Engine — UCI command line interface"
+
+[[bin]]
+name = "specter"
+path = "src/main.rs"
+
+[dependencies]
+specter-engine = { path = "../engine" }

@@ -1,0 +1,1 @@
+export { detectBrilliant } from '../classifier'

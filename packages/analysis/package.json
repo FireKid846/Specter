@@ -1,0 +1,9 @@
+{
+  "name": "@specter/analysis",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "scripts": { "build": "tsc", "test": "vitest run" },
+  "dependencies": { "@specter/chess-data": "workspace:*" },
+  "devDependencies": { "typescript": "^5.4.0", "vitest": "^1.6.0" }
+}

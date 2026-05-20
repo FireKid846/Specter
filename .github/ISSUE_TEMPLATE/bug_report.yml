@@ -1,0 +1,14 @@
+name: Bug Report
+description: Report a bug in Specter Engine
+labels: ["bug"]
+body:
+  - type: input
+    attributes:
+      label: Position (FEN)
+      placeholder: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+  - type: input
+    attributes:
+      label: Expected behavior
+  - type: input
+    attributes:
+      label: Actual behavior

@@ -1,0 +1,15 @@
+[workspace]
+members = [
+    "packages/engine",
+    "packages/cli",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Specter Engine"]
+license = "MIT"
+
+[workspace.dependencies]
+# shared deps across workspace

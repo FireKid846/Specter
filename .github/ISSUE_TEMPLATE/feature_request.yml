@@ -1,0 +1,10 @@
+name: Feature Request
+description: Suggest a feature for Specter Engine
+labels: ["enhancement"]
+body:
+  - type: textarea
+    attributes:
+      label: Feature description
+  - type: textarea
+    attributes:
+      label: Why is this needed?

@@ -1,0 +1,12 @@
+{
+  "name": "specter-engine",
+  "version": "0.1.0",
+  "description": "Specter Chess Engine — high-performance WASM chess engine",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "files": ["dist/", "wasm/"],
+  "scripts": { "build": "tsc" },
+  "keywords": ["chess", "engine", "wasm", "stockfish"],
+  "license": "UNLICENSED",
+  "devDependencies": { "typescript": "^5.4.0" }
+}
