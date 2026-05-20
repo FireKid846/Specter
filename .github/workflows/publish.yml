@@ -1,0 +1,145 @@
+name: Publish Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Test before release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p specter-engine
+
+  build-cli:
+    name: Build CLI — ${{ matrix.name }}
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - name: Windows x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: specter-windows-x64.exe
+            binary: specter.exe
+
+          - name: Linux x64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: specter-linux-x64
+            binary: specter
+
+          - name: macOS x64
+            os: macos-latest
+            target: x86_64-apple-darwin
+            artifact: specter-macos-x64
+            binary: specter
+
+          - name: macOS ARM
+            os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: specter-macos-arm64
+            binary: specter
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --release -p specter-cli --target ${{ matrix.target }}
+
+      - name: Rename (Unix)
+        if: matrix.os != 'windows-latest'
+        run: |
+          cp target/${{ matrix.target }}/release/${{ matrix.binary }} ${{ matrix.artifact }}
+          chmod +x ${{ matrix.artifact }}
+
+      - name: Rename (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: Copy-Item "target\${{ matrix.target }}\release\${{ matrix.binary }}" "${{ matrix.artifact }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+  build-wasm:
+    name: Build WASM
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Build WASM
+        run: |
+          wasm-pack build packages/engine \
+            --target web \
+            --out-dir ../../packages/npm/wasm \
+            --release \
+            -- --features wasm
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: specter-wasm
+          path: packages/npm/wasm/
+
+  release:
+    name: Create Release
+    needs: [build-cli, build-wasm]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Specter Engine ${{ github.ref_name }}"
+          body: |
+            ## Specter Engine ${{ github.ref_name }}
+
+            ### UCI Binaries
+
+            | Platform | File |
+            |----------|------|
+            | Windows x64    | `specter-windows-x64.exe` |
+            | Linux x64      | `specter-linux-x64` |
+            | macOS x64      | `specter-macos-x64` |
+            | macOS ARM      | `specter-macos-arm64` |
+
+            ### Quick test
+            ```
+            ./specter-linux-x64
+            uci
+            isready
+            position startpos moves e2e4
+            go movetime 1000
+            ```
+          files: |
+            artifacts/specter-windows-x64.exe/specter-windows-x64.exe
+            artifacts/specter-linux-x64/specter-linux-x64
+            artifacts/specter-macos-x64/specter-macos-x64
+            artifacts/specter-macos-arm64/specter-macos-arm64

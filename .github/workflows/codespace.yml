@@ -1,0 +1,25 @@
+name: Codespace Setup
+
+# This runs when you open the repo in GitHub Codespaces.
+# Sets up everything you need to work on Specter.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.devcontainer/**'
+      - '.github/workflows/codespace.yml'
+
+jobs:
+  verify-setup:
+    name: Verify Dev Environment
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: rustfmt, clippy
+      - run: cargo --version
+      - run: rustc --version
+      - run: echo "Dev environment ready ✓"
