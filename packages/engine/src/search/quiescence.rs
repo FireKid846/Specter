@@ -3,7 +3,7 @@
 
 use crate::board::position::Position;
 use crate::eval::{evaluate, SCORE_MATED};
-use crate::movegen::legal::{is_in_check, legal_captures};
+use crate::movegen::legal::{is_in_check, legal_captures, legal_moves};
 use crate::search::pvs::SearchState;
 use crate::eval::material::piece_value_simple;
 
@@ -38,11 +38,19 @@ pub fn quiescence(
         if stand_pat > alpha { alpha = stand_pat; }
     }
 
-    // Generate and sort captures
+    // Generate captures (and quiet evasions when in check)
     let captures = legal_captures(pos);
+
     if captures.is_empty() {
         if in_check {
-            return SCORE_MATED + ply as i32;
+            // No captures available — check for quiet evasions before declaring mate.
+            // Quiet moves (king steps, blocks) may still escape check.
+            let all_moves = legal_moves(pos);
+            if all_moves.is_empty() {
+                return SCORE_MATED + ply as i32; // genuine checkmate
+            }
+            // Has quiet evasion — return stand_pat (we won't search quiet moves in qsearch)
+            return stand_pat;
         }
         return stand_pat;
     }
