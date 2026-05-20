@@ -9,20 +9,40 @@ permissions:
   contents: write
 
 jobs:
+  # ─── 1. Test ────────────────────────────────────────────────────────────────
   test:
-    name: Test before release
+    name: Test Engine
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo test -p specter-engine
 
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run unit tests
+        run: cargo test -p specter-engine
+
+      - name: Perft validation (startpos)
+        run: |
+          cargo test perft_startpos_depth1 -p specter-engine -- --nocapture
+          cargo test perft_startpos_depth2 -p specter-engine -- --nocapture
+          cargo test perft_startpos_depth3 -p specter-engine -- --nocapture
+
+      - name: Perft validation (kiwipete)
+        run: |
+          cargo test perft_kiwipete_depth1 -p specter-engine -- --nocapture
+          cargo test perft_kiwipete_depth2 -p specter-engine -- --nocapture
+
+  # ─── 2a. Build CLI binaries ─────────────────────────────────────────────────
   build-cli:
     name: Build CLI — ${{ matrix.name }}
     needs: test
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - name: Windows x64
@@ -51,43 +71,55 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@v2
 
-      - name: Build
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build CLI
         run: cargo build --release -p specter-cli --target ${{ matrix.target }}
 
-      - name: Rename (Unix)
+      - name: Rename binary (Unix)
         if: matrix.os != 'windows-latest'
         run: |
           cp target/${{ matrix.target }}/release/${{ matrix.binary }} ${{ matrix.artifact }}
           chmod +x ${{ matrix.artifact }}
 
-      - name: Rename (Windows)
+      - name: Rename binary (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: Copy-Item "target\${{ matrix.target }}\release\${{ matrix.binary }}" "${{ matrix.artifact }}"
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}
 
+  # ─── 2b. Build WASM ─────────────────────────────────────────────────────────
   build-wasm:
     name: Build WASM
     needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
 
       - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+        run: |
+          curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Build WASM
         run: |
@@ -97,19 +129,26 @@ jobs:
             --release \
             -- --features wasm
 
-      - uses: actions/upload-artifact@v4
+      - name: Package WASM
+        run: |
+          cd packages/npm/wasm
+          zip -r ../../../specter-wasm.zip .
+
+      - name: Upload WASM artifact
+        uses: actions/upload-artifact@v4
         with:
           name: specter-wasm
-          path: packages/npm/wasm/
+          path: specter-wasm.zip
 
+  # ─── 3. Publish GitHub Release ──────────────────────────────────────────────
   release:
-    name: Create Release
+    name: Publish Release
     needs: [build-cli, build-wasm]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download artifacts
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts/
@@ -118,6 +157,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: "Specter Engine ${{ github.ref_name }}"
+          generate_release_notes: true
           body: |
             ## Specter Engine ${{ github.ref_name }}
 
@@ -125,10 +165,14 @@ jobs:
 
             | Platform | File |
             |----------|------|
-            | Windows x64    | `specter-windows-x64.exe` |
-            | Linux x64      | `specter-linux-x64` |
-            | macOS x64      | `specter-macos-x64` |
-            | macOS ARM      | `specter-macos-arm64` |
+            | Windows x64 | `specter-windows-x64.exe` |
+            | Linux x64   | `specter-linux-x64`       |
+            | macOS x64   | `specter-macos-x64`       |
+            | macOS ARM   | `specter-macos-arm64`     |
+
+            ### WASM Package
+
+            `specter-wasm.zip` — drop into your web project (built with `wasm-pack --target web`).
 
             ### Quick test
             ```
@@ -143,3 +187,4 @@ jobs:
             artifacts/specter-linux-x64/specter-linux-x64
             artifacts/specter-macos-x64/specter-macos-x64
             artifacts/specter-macos-arm64/specter-macos-arm64
+            artifacts/specter-wasm/specter-wasm.zip
