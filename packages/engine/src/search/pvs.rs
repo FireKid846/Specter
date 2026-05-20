@@ -39,6 +39,11 @@ pub struct SearchState<'a> {
     pub pv_length:    [usize; MAX_PLY],
     /// Stack of moves made at each ply (for continuation history).
     pub move_stack:   [Move; MAX_PLY],
+    /// Static evals at each ply — used for the `improving` heuristic.
+    pub eval_stack:   [i32; MAX_PLY],
+    /// Exclusion move for singular extension sub-searches.
+    /// When set, pvs() skips this move at the current ply.
+    pub excl_move:    Move,
 }
 
 impl<'a> SearchState<'a> {
@@ -122,7 +127,15 @@ pub fn pvs(
         raw + corr / 128
     };
 
-    let improving = !in_check && ply >= 2 && static_eval > evaluate(pos);
+    // Save static eval for improving detection at ply+2
+    state.eval_stack[ply] = static_eval;
+
+    // Improving: static eval is better than it was two plies ago (our last turn).
+    // Requires a valid (non-check) eval from two plies back.
+    let improving = !in_check
+        && ply >= 2
+        && state.eval_stack[ply - 2] != SCORE_NONE
+        && static_eval > state.eval_stack[ply - 2];
 
     // ── Pruning (skip in check, PV, or root) ──────────────────────────────
     if !in_check && !is_pv {
@@ -167,7 +180,11 @@ pub fn pvs(
 
     for (mv, _) in &scored_moves {
         let mv = *mv;
-        let is_capture   = pos.piece_on(mv.to()).is_some();
+
+        // Skip the exclusion move — used by singular extension sub-searches.
+        if mv == state.excl_move { continue; }
+
+        let is_capture   = mv.is_capture(pos); // handles en passant correctly
         let _is_promotion = mv.is_promotion();
         let gives_check  = {
             let state_bak = pos.make_move(mv);
@@ -258,7 +275,7 @@ pub fn pvs(
                         state.butterfly.update(pos.side.index(), mv.from().index(), mv.to().index(), bonus);
                         // Penalize quiets that didn't cause cutoff
                         for &(other_mv, _) in scored_moves.iter().take((moves_searched - 1) as usize) {
-                            if pos.piece_on(other_mv.to()).is_none() {
+                            if !other_mv.is_capture(pos) {
                                 state.butterfly.update(pos.side.index(), other_mv.from().index(), other_mv.to().index(), -bonus);
                             }
                         }
