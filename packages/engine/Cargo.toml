@@ -12,14 +12,17 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 wasm-bindgen = { version = "0.2", optional = true }
-js-sys = { version = "0.3", optional = true }
+js-sys       = { version = "0.3", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
 
 [features]
 default = []
-wasm = ["wasm-bindgen", "js-sys"]
+wasm    = ["wasm-bindgen", "js-sys"]
+# Enable to embed a trained .nnue file at compile time.
+# Place the file at: packages/engine/src/eval/nnue/specter.nnue
+nnue    = []
 
 [[bench]]
 name = "search_bench"
