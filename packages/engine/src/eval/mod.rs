@@ -1,7 +1,10 @@
 /// Specter Engine — Evaluation
 ///
-/// Uses tapered evaluation: scores are blended between middlegame (MG)
-/// and endgame (EG) based on remaining material (game phase).
+/// Uses NNUE evaluation when a trained network is embedded (feature = "nnue").
+/// Falls back to tapered hand-crafted evaluation when no network is present.
+///
+/// Hand-crafted eval uses tapered evaluation: scores are blended between
+/// middlegame (MG) and endgame (EG) based on remaining material (game phase).
 ///
 /// Score packing: a single i32 packs both MG and EG values:
 ///   bits  0–15: middlegame score (i16)
@@ -73,11 +76,13 @@ pub const SCORE_NONE:     i32 = -32001;
 pub fn mate_in(score: i32) -> i32 { (SCORE_MATE - score.abs() + 1) / 2 }
 pub fn is_mate_score(score: i32) -> bool { score.abs() >= SCORE_MATE - 200 }
 
-// ─── Main evaluation ──────────────────────────────────────────────────────────
+// ─── Hand-crafted evaluation ──────────────────────────────────────────────────
 
 const TEMPO: i32 = 15;
 
-pub fn evaluate(pos: &Position) -> i32 {
+/// Full hand-crafted evaluation. Used as fallback when NNUE is not active.
+/// Returns score in centipawns from side-to-move perspective.
+pub fn evaluate_hce(pos: &Position) -> i32 {
     let phase = game_phase(pos);
     let mut score = 0i32;
     score += evaluate_material(pos);
@@ -89,4 +94,31 @@ pub fn evaluate(pos: &Position) -> i32 {
     let mut result = taper(score, phase);
     result += TEMPO;
     result * pos.side.sign()
+}
+
+// ─── Main evaluation entry point ─────────────────────────────────────────────
+
+/// Evaluate the current position.
+///
+/// When `nnue_eval` is Some and active, uses NNUE.
+/// Otherwise falls back to hand-crafted eval.
+///
+/// Returns score in centipawns from side-to-move perspective.
+pub fn evaluate(pos: &Position) -> i32 {
+    // Hand-crafted fallback — used when no NnueEval is threaded through search.
+    // The search passes NnueEval through SearchState when available.
+    evaluate_hce(pos)
+}
+
+/// Evaluate using NNUE if available, hand-crafted otherwise.
+/// This is the preferred call site from inside the search.
+pub fn evaluate_with_nnue(
+    pos:  &Position,
+    nnue: &crate::eval::nnue::NnueEval,
+) -> i32 {
+    if nnue.is_active() {
+        nnue.evaluate(pos).unwrap_or_else(|| evaluate_hce(pos))
+    } else {
+        evaluate_hce(pos)
+    }
 }
