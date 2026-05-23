@@ -7,6 +7,7 @@
 
 use crate::board::position::{Move, Position};
 use crate::eval::{SCORE_INFINITE, SCORE_NONE, is_mate_score, mate_in};
+use crate::eval::nnue::NnueEval;
 use crate::history::butterfly::ButterflyHistory;
 use crate::history::capture::CaptureHistory;
 use crate::history::continuation::ContinuationHistory;
@@ -42,7 +43,6 @@ pub fn search(
     time:     TimeManager,
     callback: Option<InfoCallback>,
 ) -> SearchResult {
-    // Initialize attack tables and LMR table
     init_all();
     init_lmr();
 
@@ -51,6 +51,11 @@ pub fn search(
     let mut cap_hist  = CaptureHistory::new();
     let mut cont_hist = ContinuationHistory::new();
     let mut corr_hist = CorrectionHistory::new();
+
+    // NNUE: create evaluator, load weights (None if no .nnue embedded),
+    // then do a full board refresh from the current position.
+    let mut nnue = NnueEval::new();
+    nnue.refresh(pos);
 
     tt.new_search();
 
@@ -61,6 +66,7 @@ pub fn search(
         capture_hist: &mut cap_hist,
         cont_hist:    &mut cont_hist,
         corr_hist:    &mut corr_hist,
+        nnue:         &mut nnue,
         time:         &time,
         nodes:        0,
         seldepth:     0,
@@ -85,40 +91,38 @@ pub fn search(
         hashfull:   0,
     };
 
-    let max_depth = if time.max_depth > 0 { time.max_depth } else { 100 };
+    let mut asp_window = 25i32;
 
-    // ── Aspiration window parameters ──────────────────────────────────────
-    let mut asp_delta = 25i32;
-
-    for depth in 1..=max_depth {
+    for depth in 1u32.. {
         if time.depth_limit_reached(depth) { break; }
-        if depth > 1 && time.is_soft_expired() { break; }
+        if time.is_soft_expired()          { break; }
 
         state.seldepth = 0;
 
-        // ── Aspiration windows ────────────────────────────────────────────
-        let (mut alpha, mut beta) = if depth >= 4 {
-            (best_score - asp_delta, best_score + asp_delta)
+        let score = if depth <= 4 || best_score == -SCORE_INFINITE {
+            // No aspiration window at low depths
+            pvs(&mut *pos, &mut state, -SCORE_INFINITE, SCORE_INFINITE, depth as i32, 0, true, false)
         } else {
-            (-SCORE_INFINITE, SCORE_INFINITE)
-        };
+            // Aspiration window search
+            let mut alpha = (best_score - asp_window).max(-SCORE_INFINITE);
+            let mut beta  = (best_score + asp_window).min(SCORE_INFINITE);
+            let mut asp_delta = asp_window;
 
-        let score = loop {
-            let s = pvs(pos, &mut state, alpha, beta, depth as i32, 0, true, false);
+            loop {
+                let s = pvs(&mut *pos, &mut state, alpha, beta, depth as i32, 0, true, false);
 
-            if time.is_hard_expired() { break s; }
+                if time.is_hard_expired() { break s; }
 
-            if s <= alpha {
-                // Failed low — widen lower bound
-                alpha = (s - asp_delta).max(-SCORE_INFINITE);
-                asp_delta *= 2;
-            } else if s >= beta {
-                // Failed high — widen upper bound
-                beta = (s + asp_delta).min(SCORE_INFINITE);
-                asp_delta *= 2;
-            } else {
-                asp_delta = 25; // Reset delta
-                break s;
+                if s <= alpha {
+                    alpha     = (s - asp_delta).max(-SCORE_INFINITE);
+                    asp_delta *= 2;
+                } else if s >= beta {
+                    beta      = (s + asp_delta).min(SCORE_INFINITE);
+                    asp_delta *= 2;
+                } else {
+                    asp_delta = 25;
+                    break s;
+                }
             }
         };
 
@@ -135,21 +139,20 @@ pub fn search(
 
         result = SearchResult {
             best_move,
-            score:     best_score,
+            score:    best_score,
             depth,
-            seldepth:  state.seldepth,
-            nodes:     state.nodes,
-            time_ms:   elapsed_ms,
-            pv:        pv.clone(),
+            seldepth: state.seldepth,
+            nodes:    state.nodes,
+            time_ms:  elapsed_ms,
+            pv:       pv.clone(),
             nps,
-            hashfull:  state.tt.hashfull(),
+            hashfull: state.tt.hashfull(),
         };
 
         if let Some(ref cb) = callback {
             cb(&result);
         }
 
-        // If we found mate, no need to search deeper
         if is_mate_score(best_score) { break; }
     }
 
