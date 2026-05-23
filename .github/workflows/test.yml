@@ -1,6 +1,7 @@
 name: Quick Test
 
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - 'packages/engine/**'
