@@ -91,7 +91,7 @@ pub fn search(
         hashfull:   0,
     };
 
-    let mut asp_window = 25i32;
+    let asp_window = 25i32;
 
     for depth in 1u32.. {
         if time.depth_limit_reached(depth) { break; }
@@ -120,7 +120,6 @@ pub fn search(
                     beta      = (s + asp_delta).min(SCORE_INFINITE);
                     asp_delta *= 2;
                 } else {
-                    asp_delta = 25;
                     break s;
                 }
             }
