@@ -155,7 +155,7 @@ jobs:
         shell: bash
         run: |
           if [ -f "packages/engine/src/eval/nnue/specter.nnue" ]; then
-            echo "features=--features nnue" >> $GITHUB_OUTPUT
+            echo "features=--features nnue,nnue_embed" >> $GITHUB_OUTPUT
             echo "label=NNUE" >> $GITHUB_OUTPUT
             echo "NNUE found — building with NNUE"
           else
