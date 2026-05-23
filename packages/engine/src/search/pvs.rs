@@ -7,7 +7,8 @@
 /// with the null window and never need re-searching.
 
 use crate::board::position::{Move, Position};
-use crate::eval::{evaluate, is_mate_score, SCORE_DRAW, SCORE_MATED, SCORE_NONE};
+use crate::eval::{evaluate_hce, evaluate_with_nnue, is_mate_score, SCORE_DRAW, SCORE_MATED, SCORE_NONE};
+use crate::eval::nnue::NnueEval;
 use crate::history::butterfly::ButterflyHistory;
 use crate::history::capture::CaptureHistory;
 use crate::history::continuation::ContinuationHistory;
@@ -32,6 +33,7 @@ pub struct SearchState<'a> {
     pub capture_hist: &'a mut CaptureHistory,
     pub cont_hist:    &'a mut ContinuationHistory,
     pub corr_hist:    &'a mut CorrectionHistory,
+    pub nnue:         &'a mut NnueEval,
     pub time:         &'a TimeManager,
     pub nodes:        u64,
     pub seldepth:     u32,
@@ -42,7 +44,6 @@ pub struct SearchState<'a> {
     /// Static evals at each ply — used for the `improving` heuristic.
     pub eval_stack:   [i32; MAX_PLY],
     /// Exclusion move for singular extension sub-searches.
-    /// When set, pvs() skips this move at the current ply.
     pub excl_move:    Move,
 }
 
@@ -74,7 +75,7 @@ pub fn pvs(
     cut_node: bool,
 ) -> i32 {
     // ── Terminal conditions ────────────────────────────────────────────────
-    if ply >= MAX_PLY - 1 { return evaluate(pos); }
+    if ply >= MAX_PLY - 1 { return evaluate_with_nnue(pos, state.nnue); }
 
     state.pv_length[ply] = 0;
 
@@ -105,7 +106,6 @@ pub fn pvs(
 
     if let Some(entry) = tt_hit {
         tt_move = entry.mv;
-        // Use TT score if not PV node and search was deep enough
         if !is_pv && entry.depth as i32 >= depth {
             let score = entry.score;
             match entry.bound {
@@ -119,39 +119,34 @@ pub fn pvs(
 
     // ── Static evaluation ─────────────────────────────────────────────────
     let static_eval = if in_check {
-        SCORE_NONE // Can't evaluate in check
+        SCORE_NONE
     } else {
-        let raw = evaluate(pos);
-        // Apply correction history
+        let raw = evaluate_with_nnue(pos, state.nnue);
         let corr = state.corr_hist.get(pos.side.index(), pos.hash);
         raw + corr / 128
     };
 
-    // Save static eval for improving detection at ply+2
     state.eval_stack[ply] = static_eval;
 
-    // Improving: static eval is better than it was two plies ago (our last turn).
-    // Requires a valid (non-check) eval from two plies back.
     let improving = !in_check
         && ply >= 2
         && state.eval_stack[ply - 2] != SCORE_NONE
         && static_eval > state.eval_stack[ply - 2];
 
-    // ── Pruning (skip in check, PV, or root) ──────────────────────────────
+    // ── Pruning ───────────────────────────────────────────────────────────
     if !in_check && !is_pv {
-        // ── Reverse Futility Pruning (RFP) ────────────────────────────────
-        // If static eval is well above beta, we can prune.
+        // Reverse Futility Pruning
         let rfp_margin = 120 * depth;
         if depth < 9 && static_eval - rfp_margin >= beta {
             return static_eval;
         }
 
-        // ── Null Move Pruning (NMP) ────────────────────────────────────────
+        // Null Move Pruning
         if let Some(score) = try_null_move(pos, state, beta, depth, ply, static_eval) {
             return score;
         }
 
-        // ── Razoring ──────────────────────────────────────────────────────
+        // Razoring
         if depth <= 2 && static_eval + 300 * depth < alpha {
             let q = quiescence(pos, state, alpha, beta, ply);
             if q < alpha { return q; }
@@ -164,7 +159,6 @@ pub fn pvs(
         return if in_check { SCORE_MATED + ply as i32 } else { SCORE_DRAW };
     }
 
-    // Sort moves (move picker handles ordering — simplified here for initial version)
     let mut scored_moves: Vec<(Move, i32)> = moves.as_slice()
         .iter()
         .map(|&mv| {
@@ -181,12 +175,10 @@ pub fn pvs(
     for (mv, _) in &scored_moves {
         let mv = *mv;
 
-        // Skip the exclusion move — used by singular extension sub-searches.
         if mv == state.excl_move { continue; }
 
-        let is_capture   = mv.is_capture(pos); // handles en passant correctly
-        let _is_promotion = mv.is_promotion();
-        let gives_check  = {
+        let is_capture    = mv.is_capture(pos);
+        let gives_check   = {
             let state_bak = pos.make_move(mv);
             let ch = is_in_check(pos, pos.side);
             pos.unmake_move(mv, state_bak);
@@ -195,9 +187,8 @@ pub fn pvs(
 
         // ── Extensions ────────────────────────────────────────────────────
         let mut extension = 0;
-        if in_check { extension = 1; }  // Check extension
+        if in_check { extension = 1; }
 
-        // Singular extension
         if !is_root
             && depth >= 8
             && mv == tt_move
@@ -216,22 +207,26 @@ pub fn pvs(
             if depth <= 8 && static_eval + futility_margin <= alpha {
                 continue;
             }
-            // Late move pruning — skip late quiet moves at low depths
             let lmp_threshold = if improving { 4 + depth * depth } else { 2 + depth * depth / 2 };
             if depth <= 5 && moves_searched >= lmp_threshold { continue; }
         }
 
-        // ── Make move ─────────────────────────────────────────────────────
+        // ── Make move — push NNUE accumulator before, refresh after if king ──
         state.move_stack[ply] = mv;
+        state.nnue.push(pos, mv);
         let unmake = pos.make_move(mv);
+
+        // If king moved, NNUE needs a full refresh from the new position
+        if state.nnue.needs_refresh() {
+            state.nnue.refresh(pos);
+        }
+
         moves_searched += 1;
 
-        // ── LMR — Late Move Reductions ────────────────────────────────────
+        // ── LMR ───────────────────────────────────────────────────────────
         let score = if moves_searched == 1 {
-            // First move: full window search
             -pvs(pos, state, -beta, -alpha, new_depth, ply + 1, is_pv, false)
         } else {
-            // Subsequent moves: try null window with possible reduction
             let reduction = if !is_capture && !gives_check && !in_check && moves_searched > 2 {
                 lmr_reduction(depth, moves_searched as i32)
             } else {
@@ -241,7 +236,6 @@ pub fn pvs(
             let reduced_depth = (new_depth - reduction).max(1);
             let null_score = -pvs(pos, state, -alpha - 1, -alpha, reduced_depth, ply + 1, false, true);
 
-            // Re-search if promising
             if null_score > alpha && (reduction > 0 || !is_pv) {
                 -pvs(pos, state, -alpha - 1, -alpha, new_depth, ply + 1, false, !cut_node)
             } else if is_pv && null_score > alpha {
@@ -251,14 +245,14 @@ pub fn pvs(
             }
         };
 
+        // ── Unmake move — pop NNUE accumulator ────────────────────────────
         pos.unmake_move(mv, unmake);
+        state.nnue.pop();
 
-        // Stop if time expired
         if state.time.should_check(state.nodes) && state.time.is_hard_expired() {
             return alpha;
         }
 
-        // ── Update best ───────────────────────────────────────────────────
         if score > best_score {
             best_score = score;
             best_move  = mv;
@@ -268,12 +262,10 @@ pub fn pvs(
                 if is_pv { state.update_pv(ply, mv); }
 
                 if score >= beta {
-                    // Beta cutoff — update histories
                     if !is_capture {
                         state.killers.store(ply, mv);
                         let bonus = history_bonus(depth);
                         state.butterfly.update(pos.side.index(), mv.from().index(), mv.to().index(), bonus);
-                        // Penalize quiets that didn't cause cutoff
                         for &(other_mv, _) in scored_moves.iter().take((moves_searched - 1) as usize) {
                             if !other_mv.is_capture(pos) {
                                 state.butterfly.update(pos.side.index(), other_mv.from().index(), other_mv.to().index(), -bonus);
@@ -286,7 +278,6 @@ pub fn pvs(
         }
     }
 
-    // ── Store in TT ───────────────────────────────────────────────────────
     let bound = if best_score >= beta {
         Bound::Lower
     } else if is_pv && best_move != Move::NULL {
@@ -300,7 +291,7 @@ pub fn pvs(
     best_score
 }
 
-/// Score a move for ordering (higher = try first).
+/// Score a move for ordering.
 fn score_move(
     pos:     &Position,
     state:   &SearchState,
@@ -316,7 +307,6 @@ fn score_move(
     let captured = pos.piece_on(mv.to());
 
     if let Some(cap) = captured {
-        // MVV-LVA: Most Valuable Victim - Least Valuable Aggressor
         let victim_val    = piece_value_simple(cap.piece_type);
         let aggressor_pt  = pos.piece_type_on(mv.from(), pos.side).unwrap_or(PieceType::Pawn);
         let aggressor_val = piece_value_simple(aggressor_pt);
@@ -325,16 +315,13 @@ fn score_move(
 
     if mv.is_promotion() { return 900_000; }
 
-    // Killer moves
     let killers = state.killers.get(ply);
     if mv == killers[0] { return 800_000; }
     if mv == killers[1] { return 700_000; }
 
-    // Butterfly history
     state.butterfly.get(pos.side.index(), mv.from().index(), mv.to().index())
 }
 
-/// History bonus/malus scaled by depth.
 fn history_bonus(depth: i32) -> i32 {
     (300 * depth - 300).min(2800)
 }
