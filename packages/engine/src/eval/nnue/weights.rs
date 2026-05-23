@@ -119,17 +119,19 @@ pub const QAB: i32 = QA * QB;
 // All weights are stored in row-major order.
 // Feature weights are laid out as [feature_index][neuron_index].
 
-/// The embedded network file. Will be `None` at compile time if no .nnue file
-/// is present — the engine falls back to hand-crafted eval in that case.
+/// The embedded network file.
 ///
-/// To embed a trained network, place the .nnue file at:
-///   packages/engine/src/eval/nnue/specter.nnue
-/// and set the `nnue` feature in Cargo.toml.
-#[cfg(feature = "nnue")]
-pub static NETWORK_BYTES: &[u8] =
-    include_bytes!("specter.nnue");
+/// Weights are only baked in when the `nnue_embed` feature is active.
+/// `--features nnue` compiles all NNUE code but leaves NETWORK_BYTES empty
+/// so the engine falls back to HCE — safe to build without a .nnue file.
+///
+/// To embed a trained network:
+///   1. Place specter.nnue at packages/engine/src/eval/nnue/specter.nnue
+///   2. Build with: cargo build --release --features nnue,nnue_embed
+#[cfg(feature = "nnue_embed")]
+pub static NETWORK_BYTES: &[u8] = include_bytes!("specter.nnue");
 
-#[cfg(not(feature = "nnue"))]
+#[cfg(not(feature = "nnue_embed"))]
 pub static NETWORK_BYTES: &[u8] = &[];
 
 /// Size checks — validated at startup.
