@@ -16,6 +16,8 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      # Build without nnue feature — no .nnue file in repo, HCE fallback is active.
+      # Perft tests are pure movegen and don't depend on eval, so this is always correct.
       - name: Perft depth 1–3 (startpos)
         run: |
           cargo test perft_startpos_d1 -p specter-engine --release -- --nocapture
@@ -26,3 +28,8 @@ jobs:
         run: |
           cargo test perft_kiwipete_depth1 -p specter-engine --release -- --nocapture
           cargo test perft_kiwipete_depth2 -p specter-engine --release -- --nocapture
+
+      # Compile check with nnue feature enabled (no .nnue file = weights.rs returns None,
+      # engine falls back to HCE). Ensures the feature compiles cleanly.
+      - name: Compile check with nnue feature
+        run: cargo build -p specter-engine --release --features nnue
