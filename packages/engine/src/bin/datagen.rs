@@ -19,7 +19,6 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use specter::board::color::Color;
-use specter::board::piece::PieceType;
 use specter::board::position::Position;
 use specter::movegen::attacks::init_all;
 use specter::movegen::legal::{is_in_check, legal_moves};
@@ -163,20 +162,20 @@ fn play_game(
     filter_draws: bool,
 ) -> Vec<Record> {
     let mut pos = Position::startpos();
-    let mut tt  = TranspositionTable::new_mb(16); // small TT per thread
+    let mut tt  = TranspositionTable::new(16); // small TT per thread
 
     let mut positions_in_game: Vec<(Position, i32)> = Vec::with_capacity(100);
 
     // ── Random opening ──────────────────────────────────────────────────────
     for ply in 0..random_plies {
-        let moves = legal_moves(&pos);
+        let moves = legal_moves(&mut pos);
         if moves.is_empty() { return vec![]; }
 
         let idx = (pos.hash.wrapping_mul(6364136223846793005)
             .wrapping_add(1442695040888963407)
-            .wrapping_shr(33)) as usize % moves.len();
+            .wrapping_shr(33)) as usize % moves.as_slice().len();
 
-        pos.make_move(moves[idx]);
+        pos.make_move(moves.as_slice()[idx]);
 
         // Don't record random-ply positions — too noisy
         let _ = ply;
@@ -186,7 +185,7 @@ fn play_game(
     let mut outcome = None;
 
     for _ in 0..400 {
-        let moves = legal_moves(&pos);
+        let moves = legal_moves(&mut pos);
         if moves.is_empty() {
             let in_check = is_in_check(&pos, pos.side);
             outcome = Some(if in_check {
