@@ -7,6 +7,10 @@ on:
         description: 'Release version (e.g. v1.2.3)'
         required: true
         type: string
+      nnue_url:
+        description: 'Direct download URL for specter.nnue (optional — leave blank to use existing or HCE)'
+        required: false
+        type: string
   push:
     tags:
       - 'v*.*.*'
@@ -18,10 +22,58 @@ env:
   RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
 
 jobs:
+  # ─── 0. Embed NNUE (optional) ────────────────────────────────────────────────
+  # Only runs when nnue_url input is provided.
+  # Downloads the .nnue file, validates it, commits it to the repo,
+  # and uploads it as an artifact for the build jobs to pick up.
+  embed-nnue:
+    name: Embed NNUE Network
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.nnue_url != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download specter.nnue
+        run: |
+          curl -L "${{ github.event.inputs.nnue_url }}" -o specter.nnue
+          ls -lh specter.nnue
+
+      - name: Validate file size
+        run: |
+          SIZE=$(wc -c < specter.nnue)
+          EXPECTED=1573634
+          echo "File size: $SIZE bytes / Expected: $EXPECTED bytes"
+          if [ "$SIZE" -ne "$EXPECTED" ]; then
+            echo "WARNING: size mismatch — check Bullet output format"
+          else
+            echo "Size check PASSED"
+          fi
+
+      - name: Place in engine source
+        run: cp specter.nnue packages/engine/src/eval/nnue/specter.nnue
+
+      - name: Commit to repo
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add packages/engine/src/eval/nnue/specter.nnue
+          git commit -m "embed: trained NNUE weights ${{ env.RELEASE_VERSION }}" || echo "Nothing to commit"
+          git push
+
+      - name: Upload .nnue artifact for build jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: specter-nnue-file
+          path: packages/engine/src/eval/nnue/specter.nnue
+
   # ─── 1. Test ────────────────────────────────────────────────────────────────
   test:
     name: Test Engine
     runs-on: ubuntu-latest
+    needs: [embed-nnue]
+    if: ${{ always() && !failure() && !cancelled() }}
     steps:
       - uses: actions/checkout@v4
 
@@ -89,8 +141,31 @@ jobs:
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
 
+      # If nnue_url was provided, download the .nnue artifact from embed-nnue job
+      - name: Download .nnue artifact (if NNUE embed run)
+        if: ${{ github.event.inputs.nnue_url != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: specter-nnue-file
+          path: packages/engine/src/eval/nnue/
+
+      # Detect .nnue — either just downloaded, or already committed in repo
+      - name: Detect NNUE
+        id: nnue
+        shell: bash
+        run: |
+          if [ -f "packages/engine/src/eval/nnue/specter.nnue" ]; then
+            echo "features=--features nnue" >> $GITHUB_OUTPUT
+            echo "label=NNUE" >> $GITHUB_OUTPUT
+            echo "NNUE found — building with NNUE"
+          else
+            echo "features=" >> $GITHUB_OUTPUT
+            echo "label=HCE" >> $GITHUB_OUTPUT
+            echo "No NNUE — building with HCE fallback"
+          fi
+
       - name: Build CLI
-        run: cargo build --release -p specter-cli --target ${{ matrix.target }}
+        run: cargo build --release -p specter-cli --target ${{ matrix.target }} ${{ steps.nnue.outputs.features }}
 
       - name: Rename binary (Unix)
         if: matrix.os != 'windows-latest'
@@ -110,6 +185,7 @@ jobs:
           path: ${{ matrix.artifact }}
 
   # ─── 2b. Build WASM ─────────────────────────────────────────────────────────
+  # Always HCE — .nnue is too large for web delivery
   build-wasm:
     name: Build WASM
     needs: test
@@ -162,14 +238,25 @@ jobs:
         with:
           path: artifacts/
 
+      - name: Detect NNUE label
+        id: nnue
+        run: |
+          if [ -f "packages/engine/src/eval/nnue/specter.nnue" ]; then
+            echo "label=NNUE" >> $GITHUB_OUTPUT
+          else
+            echo "label=HCE" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_VERSION }}
-          name: "Specter Engine ${{ env.RELEASE_VERSION }}"
+          name: "Specter Engine ${{ env.RELEASE_VERSION }} [${{ steps.nnue.outputs.label }}]"
           generate_release_notes: true
           body: |
             ## Specter Engine ${{ env.RELEASE_VERSION }}
+
+            **Eval:** ${{ steps.nnue.outputs.label == 'NNUE' && 'NNUE (trained network embedded)' || 'Hand-crafted eval (HCE)' }}
 
             ### UCI Binaries
 
@@ -182,7 +269,7 @@ jobs:
 
             ### WASM Package
 
-            `specter-wasm.zip` — drop into your web project (built with `wasm-pack --target web`).
+            `specter-wasm.zip` — built with `wasm-pack --target web`. Always uses HCE.
 
             ### Quick test
             ```
