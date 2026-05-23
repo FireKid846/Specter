@@ -7,7 +7,7 @@
 /// with the null window and never need re-searching.
 
 use crate::board::position::{Move, Position};
-use crate::eval::{evaluate_hce, evaluate_with_nnue, is_mate_score, SCORE_DRAW, SCORE_MATED, SCORE_NONE};
+use crate::eval::{evaluate_with_nnue, is_mate_score, SCORE_DRAW, SCORE_MATED, SCORE_NONE};
 use crate::eval::nnue::NnueEval;
 use crate::history::butterfly::ButterflyHistory;
 use crate::history::capture::CaptureHistory;
