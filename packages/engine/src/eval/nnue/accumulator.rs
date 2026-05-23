@@ -15,7 +15,7 @@
 
 use crate::board::color::Color;
 use crate::board::piece::PieceType;
-use crate::board::position::{Move, MoveFlag, Position};
+use crate::board::position::{Move, Position};
 use crate::eval::nnue::weights::{
     feature_index, NetworkWeights, L1_SIZE,
 };
@@ -108,8 +108,8 @@ impl Accumulator {
     /// For king moves, performs a full refresh instead of incremental update.
     pub fn push_move(&mut self, pos: &Position, mv: Move, weights: &NetworkWeights) {
         // Clone current state
-        let mut new_state = self.current().clone();
-        self.stack.push(new_state.clone());
+        let new_state = self.current().clone();
+        self.stack.push(new_state);
         let new_state = self.stack.last_mut().unwrap();
 
         let us       = pos.side;
