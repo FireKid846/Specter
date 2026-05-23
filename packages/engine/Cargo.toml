@@ -19,10 +19,12 @@ criterion = { version = "0.5", features = ["html_reports"] }
 
 [features]
 default = []
-wasm    = ["wasm-bindgen", "js-sys"]
-# Enable to embed a trained .nnue file at compile time.
-# Place the file at: packages/engine/src/eval/nnue/specter.nnue
-nnue    = []
+wasm       = ["wasm-bindgen", "js-sys"]
+# Compile NNUE evaluation code (safe without a .nnue file — falls back to HCE)
+nnue       = []
+# Embed the .nnue weights file at compile time (requires specter.nnue to exist)
+# Usage: cargo build --release --features nnue,nnue_embed
+nnue_embed = []
 
 [[bench]]
 name = "search_bench"
